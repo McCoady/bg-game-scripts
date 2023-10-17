@@ -1,8 +1,9 @@
-import { ethers } from "ethers";
+import { MaxUint256, ethers } from "ethers";
 import dotenv from "dotenv";
 dotenv.config();
-
+import contracts from "./deployedContracts.js";
 import { basicDexAbi } from "./abis/basicDexAbi.js";
+import { assetTokenAbi } from "./abis/assetTokenAbi.js";
 
 // avocado Dex Address 0x507c3dDCE464a82CE778d2DDC2F9e0d0CDe593dd
 // banana Dex Address 0x95b2D174597Ab53d523b87F8E612e462495099EA
@@ -23,28 +24,39 @@ if (process.argv.length != 3) {
 }
 
 const dexChoice = process.argv[2];
-let assetDexAddress;
+let name;
 let privateKey;
 
 if (dexChoice == 0) {
-  // avocado dex
-  assetDexAddress = "0x507c3dDCE464a82CE778d2DDC2F9e0d0CDe593dd";
   // avocado trader pk
-  privateKey = process.env.AVOCADO_TRADER;
+  name = "Avocado";
+  privateKey = process.env.AVOCADO;
 } else if (dexChoice == 1) {
-  // banana dex
-  assetDexAddress = "0x95b2D174597Ab53d523b87F8E612e462495099EA";
+  // apple trader pk
+  name = "Apple";
+  privateKey = process.env.APPLE;
+} else if (dexChoice == 2) {
+  // lemon trader pk
+  name = "Lemon";
+  privateKey = process.env.LEMON;
+} else if (dexChoice == 3) {
+  // strawberry trader pk
+  name = "Strawberry";
+  privateKey = process.env.STRAWBERRY;
+} else if (dexChoice == 4) {
   // banana trader pk
-  privateKey = process.env.BANANA_TRADER;
+  name = "Banana";
+  privateKey = process.env.BANANA;
 } else {
-  // tomato dex
-  assetDexAddress = "0x592c38071e9206FBcb56358690b28e598467f5C1";
   // tomato trader pk
-  privateKey = process.env.TOMATO_TRADER;
+  name = "Tomato";
+  privateKey = process.env.TOMATO;
 }
 
+const dexAddress = contracts[100][0]["contracts"]["BasicDex" + name]["address"];
+
 // how often to make trades (in milliseconds)
-const tradeFrequency = 10_000;
+const tradeFrequency = 15_000;
 
 // Set possible trade weights & blocks before tradeWeight changes
 const tradeWeights = [0.1, 0.25, 0.5, 0.75, 0.9];
@@ -59,7 +71,7 @@ if (!privateKey) {
   console.log("Private Key not found");
   process.exit();
 }
-const provider = new ethers.WebSocketProvider(process.env.GNOSIS);
+const provider = new ethers.WebSocketProvider(process.env.GNOSIS_WSS);
 //const provider = new ethers.AlchemyProvider("goerli", process.env.ETHEREUM_RPC);
 if (!provider) {
   console.log("Provider not set up");
@@ -74,15 +86,19 @@ let count = 0;
 console.log("Starting trades");
 console.log("Initial trade weight:", tradeWeight);
 console.log("Blocks til next switch:", switchTimer);
+
+
 const assetDexContract = new ethers.Contract(
-  assetDexAddress,
+  dexAddress,
   basicDexAbi,
   wallet
 );
 
+console.log(wallet.address);
+
 async function makeTx() {
   const randSize = Math.floor(Math.random() * txSizes.length);
-  // const currentBlock = await provider.getBlockNumber();
+  
   count++;
   console.log("Current count", count);
   if (count % switchTimer == 0) {
@@ -118,7 +134,7 @@ async function makeTx() {
         tx.wait();
         console.log("Asset purchase complete");
       } catch {
-        console.log("Purcahse Failed");
+        console.log("Purchase Failed");
       }
   }
 }

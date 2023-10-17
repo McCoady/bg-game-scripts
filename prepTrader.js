@@ -11,7 +11,7 @@ import { assetTokenAbi } from "./abis/assetTokenAbi.js";
 const traderPrivateKey = process.argv[2];
 const tokenAddress = process.argv[3];
 const dexAddress = process.argv[4];
-const saltAddress = "0x1A778F645439b4DA23C6b0463EF160b16171A36B";
+const saltAddress = "0x2A1367AC5F5391C02eca422aFECfCcEC1967371D";
 
 const provider = new ethers.WebSocketProvider(process.env.GNOSIS);
 //const provider = new ethers.AlchemyProvider("goerli", process.env.ETHEREUM_RPC);
