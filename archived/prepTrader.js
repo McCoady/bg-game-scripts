@@ -2,7 +2,7 @@ import { ethers } from "ethers";
 import dotenv from "dotenv";
 dotenv.config();
 
-import { assetTokenAbi } from "./abis/assetTokenAbi.js";
+import { assetTokenAbi } from "../abis/assetTokenAbi.js";
 
 // avocado wallet: 0x8dd2Ed4B1dfEfB7ec22E1b1364cB177968701885
 // banance wallet: 0x71F3f9aF53EFF113c3d3601e7E44f5A1E3c23Ba0

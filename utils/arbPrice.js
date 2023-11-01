@@ -2,7 +2,7 @@ import { ethers } from "ethers";
 import dotenv from "dotenv";
 dotenv.config();
 
-import { basicDexAbi } from "./abis/basicDexAbi.js";
+import { basicDexAbi } from "../abis/basicDexAbi.js";
 
 // avocado Dex Address 0x507c3dDCE464a82CE778d2DDC2F9e0d0CDe593dd
 // banana Dex Address 0x95b2D174597Ab53d523b87F8E612e462495099EA

@@ -2,7 +2,7 @@ import { ethers } from "ethers";
 import dotenv from "dotenv";
 dotenv.config();
 
-import { assetTokenAbi } from "./abis/assetTokenAbi.js";
+import { assetTokenAbi } from "../abis/assetTokenAbi.js";
 
 if (process.argv.length != 3) {
     process.exitCode = 1;
@@ -27,7 +27,6 @@ if (!provider) {
 console.log(provider);
 
 const wallet = new ethers.Wallet(privateKey, provider);
-
 
 const saltTokenContract = new ethers.Contract(
     saltTokenAddress,

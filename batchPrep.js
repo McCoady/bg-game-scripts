@@ -7,37 +7,48 @@ import * as fs from "fs";
 import dotenv from "dotenv";
 dotenv.config();
 
+// array of all token names
 const fruits = ["Apple", "Avocado", "Banana", "Lemon", "Strawberry", "Tomato"];
+
+// array the token name, address objects will be stored
 let addressInfo = [];
+
+// private key of address that will disperse the tokens
 const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
 
+// rpc and wallet
 const provider = new ethers.JsonRpcProvider(process.env.GNOSIS_RPC);
 const funderWallet = new ethers.Wallet(privateKey, provider);
 
+// address of credit token and contract instance
 const creditAddress = contracts[100][0]["contracts"]["SaltToken"]["address"];
-
 const creditContract = new ethers.Contract(
   creditAddress,
   assetTokenAbi,
   funderWallet
 );
 
+// loop over fruits in array
+// create burner wallet, store private key in .env & return wallet info 
 for (let i = 0; i < fruits.length; i++) {
   // generate burner address
   const burner = await generateBurner(fruits[i].toUpperCase());
+
+  // push the address, name object to the array
   addressInfo.push({ address: burner.address, name: fruits[i] });
 
-  // prep asset contract
+  // get token/dex addresses
   const tokenName = fruits[i] + "Token";
-  const dexName = "BasicDex" + fruits[i];
-
   const tokenAddress = contracts[100][0]["contracts"][tokenName]["address"];
+  const dexName = "BasicDex" + fruits[i];
   const dexAddress = contracts[100][0]["contracts"][dexName]["address"];
+
   const tokenContract = new ethers.Contract(
     tokenAddress,
     assetTokenAbi,
     funderWallet
   );
+
   // send burner CREDIT + ASSET tokens
   const transferCred = await creditContract.transfer(burner.address, ethers.parseEther("200"));
   transferCred.wait();
@@ -70,6 +81,8 @@ for (let i = 0; i < fruits.length; i++) {
   const approveAsset = await burnerTokenContract.approve(dexAddress, MaxUint256);
   approveAsset.wait();
 }
+
+
 const addresses = { addresses: addressInfo };
 const jsonAddressInfo = JSON.stringify(addresses);
 
