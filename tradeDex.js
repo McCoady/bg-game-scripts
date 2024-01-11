@@ -61,13 +61,18 @@ console.log("Beginning trades");
 const assetDexContract = new ethers.Contract(dexAddress, basicDexAbi, wallet);
 
 async function makeTx() {
+  // returns bigint
   const targetPrice = getTargetPrice(name.toLowerCase());
+  // returns bigint
   const currentPrice = await assetDexContract.creditInPrice(ethers.parseEther("1"));
-
+  
+  console.log("targetPrice", ethers.formatEther(targetPrice));
+  console.log("currentPrice", ethers.formatEther(currentPrice));
   // TODO: make size vary
   // let tradeSize = txSizes[1];
 
-  if (targetPrice > currentPrice) {
+  if (targetPrice < currentPrice) {
+    console.log("Trading Credit to Asset");
     let priceDifference = calcPercentageDifference(targetPrice, currentPrice);
     let tradeSize = ethers.parseEther("1") * priceDifference /100n;   
     // calc slippage (allow 1%)
@@ -76,9 +81,10 @@ async function makeTx() {
     await assetDexContract.creditToAsset(tradeSize, maxSlippage);
 
   } else {
+    console.log("Trading Asset to Credit");
     let priceDifference = calcPercentageDifference(currentPrice, targetPrice);
 
-    let tradeSize = ethers.parseEther("1") * priceDifference / 100;
+    let tradeSize = ethers.parseEther("1") * priceDifference / 100n;
     // calc slippage
     let maxSlippage = await calcSlippage(tradeSize, false);
     // sell fruit
