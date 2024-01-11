@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 dotenv.config();
 import contracts from "./deployedContracts.js";
 import { basicDexAbi } from "./abis/basicDexAbi.js";
+import fs from "fs";
 import { assetTokenAbi } from "./abis/assetTokenAbi.js";
 
 if (process.argv.length != 3) {
@@ -13,36 +14,31 @@ if (process.argv.length != 3) {
 // name should be fruit choice with capitalised first letter
 const name = process.argv[2];
 
-let privateKey;
-
-if (name == "Apple") {
-  // APPLE
-  privateKey = process.env.APPLE;
-} else if (name == "Avocado") {
-  // AVOCADO
-  privateKey = process.env.AVOCADO;
-} else if (name == "Banana") {
-  // BANANA
-  privateKey = process.env.BANANA;
-} else if (name == "Lemon") {
-  // LEMON
-  privateKey = process.env.LEMON;
-} else if (name == "Strawberry") {
-  // STRAWBERRY
-  privateKey = process.env.STRAWBERRY;
-} else if (name == "Tomato") {
-  // TOMATO
-  privateKey = process.env.TOMATO;
-} else {
-  console.log("Invalid input. Example: node tradeDex.js Apple");
-  process.exit();
-}
+const privateKey = process.env[name.toUpperCase()];
 
 // exit if private key setup failed
 if (!privateKey) {
   console.log("Private Key not found");
   process.exit();
 }
+
+const jsonFilepath = "./data.json";
+
+// read json file and get corresponding price target
+//
+/**
+  * json file format 
+  * {
+  *   "apple" : 10,
+  *   "avocado" : 4,
+  *   "banana" : 8,
+  *   "lemon": 15,
+  *   "strawberry": 25,
+  *   "tomato": 15
+  * }
+  * 
+  */
+
 
 const provider = new ethers.WebSocketProvider(process.env.GNOSIS_WSS);
 //const provider = new ethers.AlchemyProvider("goerli", process.env.ETHEREUM_RPC);
@@ -60,57 +56,69 @@ const dexAddress = contracts[100][0]["contracts"]["BasicDex" + name]["address"];
 // how often to make trades (in milliseconds)
 const tradeFrequency = 15_000;
 
-// Set possible trade weights & # blocks before tradeWeight changes
-const tradeWeights = [0.1, 0.25, 0.5, 0.75, 0.9];
-let tradeWeight = tradeWeights[Math.floor(Math.random() * tradeWeights.length)];
-
-const tradesBeforeSwitch = 6;
-
-// size choices of transactions
-const txSizes = ["0.5", "1", "2", "4", "6"];
-
-let count = 0;
-
 console.log("Beginning trades");
-console.log("Initial trade weight:", tradeWeight);
 
 const assetDexContract = new ethers.Contract(dexAddress, basicDexAbi, wallet);
 
 async function makeTx() {
-  const txSize = Math.floor(Math.random() * txSizes.length);
+  const targetPrice = getTargetPrice(name.toLowerCase());
+  const currentPrice = await assetDexContract.creditInPrice(ethers.parseEther("1"));
 
-  count++;
-  console.log("Current count", count);
-  if (count % tradesBeforeSwitch == 0) {
-    tradeWeight = tradeWeights[Math.floor(Math.random() * tradeWeights.length)];
+  // TODO: make size vary
+  // let tradeSize = txSizes[1];
 
-    count = 0;
-    console.log("Changing trade strategy");
-    console.log("New trade weight:", tradeWeight);
-  }
+  if (targetPrice > currentPrice) {
+    let priceDifference = calcPercentageDifference(targetPrice, currentPrice);
+    let tradeSize = ethers.parseEther("1") * priceDifference /100n;   
+    // calc slippage (allow 1%)
+    let maxSlippage = await calcSlippage(tradeSize, true);
+    // buy fruit
+    await assetDexContract.creditToAsset(tradeSize, maxSlippage);
 
-  // if random is greater than the tradeWeight decimal, then buy credit tokens, else buy asset tokens
-  if (Math.random() >= tradeWeight) {
-    // buy credit
-    try {
-      await assetDexContract.assetToCredit(
-        ethers.parseEther(txSizes[txSize]),
-        BigInt(0)
-      );
-    } catch {
-      console.log("Purchase Failed");
-    }
   } else {
-    // buy asset
-    try {
-      await assetDexContract.creditToAsset(
-        ethers.parseEther(txSizes[txSize]),
-        BigInt(0)
-      );
-    } catch {
-      console.log("Purchase Failed");
-    }
+    let priceDifference = calcPercentageDifference(currentPrice, targetPrice);
+
+    let tradeSize = ethers.parseEther("1") * priceDifference / 100;
+    // calc slippage
+    let maxSlippage = await calcSlippage(tradeSize, false);
+    // sell fruit
+    await assetDexContract.assetToCredit(tradeSize, maxSlippage);
   }
+  // 2.2 compare prices as percentage difference?
+  // 3. choose trade size based on this difference
+  // 4. make trade
+}
+
+// helper function to calculate maximum acceptable slippage for a trade
+async function calcSlippage(amountIn, isAsset) {
+  let amountOut;
+
+  if (isAsset) {
+    amountOut = await assetDexContract.creditInPrice(amountIn);
+  } else {
+    amountOut = await assetDexContract.assetInPrice(amountIn);
+  }
+
+  return amountOut * 99n / 100n;  
+}
+
+// helper function to parse json file and return target price for given asset
+function getTargetPrice(assetName) {
+  const data = fs.readFileSync(jsonFilepath, 'utf8');
+
+  const jsonData = JSON.parse(data);
+  console.log(jsonData);
+  return ethers.parseEther(jsonData[assetName]);
+}
+
+function calcPercentageDifference(a, b) {
+  // if difference > 100 { a > b }
+  // if difference < 100 { a < b }
+  // if difference == 100 { a == b }
+  let difference = a * 100n / b;
+  // Calculate the multiplier
+  return 100n + difference;
+
 }
 
 setInterval(makeTx, tradeFrequency);
