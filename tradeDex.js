@@ -27,14 +27,14 @@ const jsonFilepath = "./data.json";
 // read json file and get corresponding price target
 //
 /**
-  * json file format 
+  * example json file format 
   * {
-  *   "apple" : 10,
-  *   "avocado" : 4,
-  *   "banana" : 8,
-  *   "lemon": 15,
-  *   "strawberry": 25,
-  *   "tomato": 15
+  *   "apple" : "10",
+  *   "avocado" : "4",
+  *   "banana" : "8",
+  *   "lemon": "15",
+  *   "strawberry": "25",
+  *   "tomato": "15'
   * }
   * 
   */
