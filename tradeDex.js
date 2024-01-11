@@ -27,14 +27,14 @@ const jsonFilepath = "./data.json";
 // read json file and get corresponding price target
 //
 /**
-  * example json file format 
+  * json file format 
   * {
   *   "apple" : "10",
   *   "avocado" : "4",
   *   "banana" : "8",
   *   "lemon": "15",
   *   "strawberry": "25",
-  *   "tomato": "15'
+  *   "tomato": "15"
   * }
   * 
   */
@@ -64,12 +64,15 @@ async function makeTx() {
   // returns bigint
   const targetPrice = getTargetPrice(name.toLowerCase());
   // returns bigint
-  const currentPrice = await assetDexContract.creditInPrice(ethers.parseEther("1"));
-  
+  let currentPrice;
+  try {
+    currentPrice = await assetDexContract.creditInPrice(ethers.parseEther("1"));
+  } catch(e) {
+    console.log("Something went wrong", e);
+    return;
+  }
   console.log("targetPrice", ethers.formatEther(targetPrice));
   console.log("currentPrice", ethers.formatEther(currentPrice));
-  // TODO: make size vary
-  // let tradeSize = txSizes[1];
 
   if (targetPrice < currentPrice) {
     console.log("Trading Credit to Asset");
@@ -78,7 +81,11 @@ async function makeTx() {
     // calc slippage (allow 1%)
     let maxSlippage = await calcSlippage(tradeSize, true);
     // buy fruit
-    await assetDexContract.creditToAsset(tradeSize, maxSlippage);
+    try {
+      await assetDexContract.creditToAsset(tradeSize, maxSlippage);
+    } catch(e) {
+      console.log("Something went wrong", e);
+    }
 
   } else {
     console.log("Trading Asset to Credit");
@@ -88,11 +95,12 @@ async function makeTx() {
     // calc slippage
     let maxSlippage = await calcSlippage(tradeSize, false);
     // sell fruit
-    await assetDexContract.assetToCredit(tradeSize, maxSlippage);
+    try {
+      await assetDexContract.assetToCredit(tradeSize, maxSlippage);
+    } catch(e) {
+      console.log("Something went wrong", e);
+    }
   }
-  // 2.2 compare prices as percentage difference?
-  // 3. choose trade size based on this difference
-  // 4. make trade
 }
 
 // helper function to calculate maximum acceptable slippage for a trade
@@ -100,9 +108,17 @@ async function calcSlippage(amountIn, isAsset) {
   let amountOut;
 
   if (isAsset) {
-    amountOut = await assetDexContract.creditInPrice(amountIn);
+    try {
+      amountOut = await assetDexContract.creditInPrice(amountIn);
+    } catch {
+      console.log("calcSlippage Error");
+    }
   } else {
-    amountOut = await assetDexContract.assetInPrice(amountIn);
+    try {
+      amountOut = await assetDexContract.assetInPrice(amountIn);
+    } catch {
+      console.log("calcSlippage Error");
+    }
   }
 
   return amountOut * 99n / 100n;  
