@@ -8,7 +8,7 @@ const envFilePath = "./.env";
  * Generate a new random private key and write it to the .env file
  * @param existingEnvConfig
  */
-const setNewEnvConfig = (name, existingEnvConfig = {}) => {
+const setNewEnvConfig = (name: string, existingEnvConfig = {}) => {
   console.log("👛 Generating new burner wallet");
   const randomWallet = ethers.Wallet.createRandom();
 
@@ -24,17 +24,17 @@ const setNewEnvConfig = (name, existingEnvConfig = {}) => {
   return randomWallet;
 };
 
-async function generateBurner(name) {
+async function generateBurner(burnerName: string) {
   if (!fs.existsSync(envFilePath)) {
     // No .env file yet.
     console.log('env doesnt exist');
-    return setNewEnvConfig(name);
+    return setNewEnvConfig(burnerName);
   }
 
   // .env file exists
   console.log("env exists");
   const existingEnvConfig = parse(fs.readFileSync(envFilePath).toString());
-  return setNewEnvConfig(name, existingEnvConfig);
+  return setNewEnvConfig(burnerName, existingEnvConfig);
 }
 
 export { generateBurner };

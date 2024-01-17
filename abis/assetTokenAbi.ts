@@ -1,3 +1,4 @@
+
 const assetTokenAbi = [
   {
     inputs: [
@@ -388,6 +389,6 @@ const assetTokenAbi = [
     stateMutability: "nonpayable",
     type: "function",
   },
-];
+] as;
 
 export { assetTokenAbi };
