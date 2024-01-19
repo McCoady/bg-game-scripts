@@ -4,7 +4,7 @@ dotenv.config();
 import contracts from "./deployedContracts.js";
 import { basicDexAbi } from "./abis/basicDexAbi.js";
 import fs from "fs";
-import { assetTokenAbi } from "./abis/assetTokenAbi.js";
+import tokensConfig from "./tokens.config.js";
 
 if (process.argv.length != 3) {
   process.exitCode = 1;
