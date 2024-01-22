@@ -1,12 +1,12 @@
-import { createWalletClient, createPublicClient, getContract, http, encodeAbiParameters, parseEther, formatEther, getAddress } from "viem";
+import { createWalletClient, createPublicClient, getContract, http, parseEther, formatEther, getAddress } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { gnosis } from "viem/chains";
 import dotenv from "dotenv";
 dotenv.config();
 import contracts from "../deployedContracts";
-import { basicDexAbi } from "../abis/basicDexAbi.js";
+import { basicDexAbi } from "../abis/basicDexAbi";
 import fs from "fs";
-import tokensConfig from "./tokens.config.js";
+import tokensConfig from "../tokens.config.js";
 
 if (process.argv.length != 3) {
   process.exitCode = 1;
@@ -17,13 +17,8 @@ if (process.argv.length != 3) {
 const name = process.argv[2];
 
 const privateKey = process.env[name.toUpperCase()];
-
-// exit if private key setup failed
-if (!privateKey) {
-  console.log("Private Key not found");
-  process.exit();
-}
-
+const account = privateKeyToAccount(`0x${privateKey?.slice(2)}`);
+console.log(account);
 const jsonFilepath = "./data.json";
 
 // read json file and get corresponding price target
@@ -48,7 +43,6 @@ async function main() {
     transport: http(),
   });
 
-  const account = privateKeyToAccount(`0x${privateKey}`);
   
   const walletClient = createWalletClient({
     account,
@@ -86,7 +80,8 @@ async function main() {
   // returns bigint
   let currentPrice: bigint;
   try {
-    currentPrice = assetDexContract.read.creditInPrice([parseEther("1")]);
+    // @ts-ignore
+    currentPrice = await assetDexContract.read.creditInPrice([parseEther("1")]);
   } catch(e) {
     console.log("Something went wrong", e);
     return;
@@ -125,17 +120,21 @@ async function main() {
 
 // helper function to calculate maximum acceptable slippage for a trade
 async function calcSlippage(amountIn: bigint, isAsset: boolean) {
-  let amountOut: bigint;
+  let amountOut: bigint = 0n;
 
   if (isAsset) {
     try {
-      amountOut = await assetDexContract.read.creditInPrice(amountIn);
+      //@ts-ignore
+      amountOut = await assetDexContract.read.creditInPrice([amountIn]);
+      console.log("amount out", amountOut);
     } catch {
       console.log("calcSlippage Error");
     }
   } else {
     try {
-      amountOut = await assetDexContract.read.assetInPrice(amountIn);
+      //@ts-ignore
+      amountOut = await assetDexContract.read.assetInPrice([amountIn]);
+      console.log("amount out", amountOut);
     } catch {
       console.log("calcSlippage Error");
     }
@@ -165,3 +164,5 @@ function calcPercentageDifference(a: bigint, b: bigint) {
 
 setInterval(makeTx, tradeFrequency);
 }
+
+main();
