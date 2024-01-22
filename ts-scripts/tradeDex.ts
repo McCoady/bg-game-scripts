@@ -1,8 +1,10 @@
-import { MaxUint256, ethers } from "ethers";
+import { createWalletClient, createPublicClient, getContract, http, encodeAbiParameters, parseEther, formatEther, getAddress } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import { gnosis } from "viem/chains";
 import dotenv from "dotenv";
 dotenv.config();
-import contracts from "./deployedContracts.js";
-import { basicDexAbi } from "./abis/basicDexAbi.js";
+import contracts from "../deployedContracts";
+import { basicDexAbi } from "../abis/basicDexAbi.js";
 import fs from "fs";
 import tokensConfig from "./tokens.config.js";
 
@@ -40,49 +42,67 @@ const jsonFilepath = "./data.json";
   */
 
 
-const provider = new ethers.WebSocketProvider(process.env.GNOSIS_WSS);
-//const provider = new ethers.AlchemyProvider("goerli", process.env.ETHEREUM_RPC);
-if (!provider) {
-  console.log("Provider not set up");
-  process.exit();
-}
+async function main() {
+  const publicClient = createPublicClient({
+    chain: gnosis,
+    transport: http(),
+  });
 
-const wallet = new ethers.Wallet(privateKey, provider);
-console.log("Trading from:", wallet.address);
+  const account = privateKeyToAccount(`0x${privateKey}`);
+  
+  const walletClient = createWalletClient({
+    account,
+    chain: gnosis,
+    transport: http(process.env.GNOSIS_RPC),
+  });
 
-// get the dex address of target asset
-const dexAddress = contracts[100][0]["contracts"]["BasicDex" + name]["address"];
+  const [address] = await walletClient.getAddresses();
 
-// how often to make trades (in milliseconds)
-const tradeFrequency = 15_000;
+  console.log("Trading from:", address);
 
-console.log("Beginning trades");
+  // get the dex address of target asset
+  //@ts-ignore 
+  const dexAddress = contracts[100][0]["contracts"]["BasicDex" + name]["address"];
 
-const assetDexContract = new ethers.Contract(dexAddress, basicDexAbi, wallet);
+  // how often to make trades (in milliseconds)
+  const tradeFrequency = 15_000;
 
-async function makeTx() {
+  console.log("Beginning trades");
+  
+  //@ts-ignore
+  //const assetDexContract = new ethers.Contract(dexAddress, basicDexAbi, wallet);
+  const assetDexContract = getContract({
+    address: getAddress(dexAddress),
+    abi: basicDexAbi,
+    client: {
+      public: publicClient,
+      wallet: walletClient,
+    }
+  });
+
+  async function makeTx() {
   // returns bigint
   const targetPrice = getTargetPrice(name.toLowerCase());
   // returns bigint
-  let currentPrice;
+  let currentPrice: bigint;
   try {
-    currentPrice = await assetDexContract.creditInPrice(ethers.parseEther("1"));
+    currentPrice = assetDexContract.read.creditInPrice([parseEther("1")]);
   } catch(e) {
     console.log("Something went wrong", e);
     return;
   }
-  console.log("targetPrice", ethers.formatEther(targetPrice));
-  console.log("currentPrice", ethers.formatEther(currentPrice));
+  console.log("targetPrice", formatEther(targetPrice));
+  console.log("currentPrice", formatEther(currentPrice));
 
   if (targetPrice < currentPrice) {
     console.log("Trading Credit to Asset");
     let priceDifference = calcPercentageDifference(targetPrice, currentPrice);
-    let tradeSize = ethers.parseEther("1") * priceDifference /100n;   
+    let tradeSize = parseEther("1") * priceDifference /100n;   
     // calc slippage (allow 1%)
     let maxSlippage = await calcSlippage(tradeSize, true);
     // buy fruit
     try {
-      await assetDexContract.creditToAsset(tradeSize, maxSlippage);
+      await assetDexContract.write.creditToAsset([tradeSize, maxSlippage]);
     } catch(e) {
       console.log("Something went wrong", e);
     }
@@ -91,12 +111,12 @@ async function makeTx() {
     console.log("Trading Asset to Credit");
     let priceDifference = calcPercentageDifference(currentPrice, targetPrice);
 
-    let tradeSize = ethers.parseEther("1") * priceDifference / 100n;
+    let tradeSize = parseEther("1") * priceDifference / 100n;
     // calc slippage
     let maxSlippage = await calcSlippage(tradeSize, false);
     // sell fruit
     try {
-      await assetDexContract.assetToCredit(tradeSize, maxSlippage);
+      await assetDexContract.write.assetToCredit([tradeSize, maxSlippage]);
     } catch(e) {
       console.log("Something went wrong", e);
     }
@@ -104,18 +124,18 @@ async function makeTx() {
 }
 
 // helper function to calculate maximum acceptable slippage for a trade
-async function calcSlippage(amountIn, isAsset) {
-  let amountOut;
+async function calcSlippage(amountIn: bigint, isAsset: boolean) {
+  let amountOut: bigint;
 
   if (isAsset) {
     try {
-      amountOut = await assetDexContract.creditInPrice(amountIn);
+      amountOut = await assetDexContract.read.creditInPrice(amountIn);
     } catch {
       console.log("calcSlippage Error");
     }
   } else {
     try {
-      amountOut = await assetDexContract.assetInPrice(amountIn);
+      amountOut = await assetDexContract.read.assetInPrice(amountIn);
     } catch {
       console.log("calcSlippage Error");
     }
@@ -125,15 +145,15 @@ async function calcSlippage(amountIn, isAsset) {
 }
 
 // helper function to parse json file and return target price for given asset
-function getTargetPrice(assetName) {
+function getTargetPrice(assetName: string) {
   const data = fs.readFileSync(jsonFilepath, 'utf8');
 
   const jsonData = JSON.parse(data);
   console.log(jsonData);
-  return ethers.parseEther(jsonData[assetName]);
+  return parseEther(jsonData[assetName]);
 }
 
-function calcPercentageDifference(a, b) {
+function calcPercentageDifference(a: bigint, b: bigint) {
   // if difference > 100 { a > b }
   // if difference < 100 { a < b }
   // if difference == 100 { a == b }
@@ -144,3 +164,4 @@ function calcPercentageDifference(a, b) {
 }
 
 setInterval(makeTx, tradeFrequency);
+}
