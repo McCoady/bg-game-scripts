@@ -2,7 +2,14 @@
 
 ## Setup
 
+.env File:
 ```
+    DEPLOYER_PRIVATE_KEY=
+    GNOSIS_RPC=
+```
+
+```
+    npm install
     ts-node ts-scripts/batchPrep.ts
     ts-node ts-scripts/tradeDex.ts {ASSET_NAME}
 ```
