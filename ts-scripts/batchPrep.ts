@@ -1,4 +1,4 @@
-import { createWalletClient, createPublicClient, getAddress, http, parseEther } from "viem";
+import { createWalletClient, createPublicClient, getAddress, getContract, http, parseEther } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { gnosis } from "viem/chains";
 import { generateBurner } from "./generateBurnerAccount";
@@ -9,18 +9,22 @@ import { TDexInfo } from "../types/wallet";
 import contracts from "../deployedContracts";
 import * as fs from "fs";
 import dotenv from "dotenv";
+import { MaxUint256 } from "ethers";
 dotenv.config();
 
-// array of all token names
-const tokenNames = tokensConfig.map((token) => token.name);
-console.log(tokenNames);
+// array of all asset names
+const assetNames = tokensConfig.map((token) => token.name);
+console.log(assetNames);
 
+// TODO: pull this from config
 const creditTokenName = "SaltToken";
+const tokensToSend = parseEther("1");
+const xDaiToSend = parseEther("0.0001");
 
 // array the token name, address objects will be stored
 let addressInfo: TDexInfo[] = [];
 
-// private key of address that will disperse the tokenNames
+// private key of address that will disperse the assetNames
 const deployerPk = process.env.DEPLOYER_PRIVATE_KEY;
 const account = privateKeyToAccount(`0x${deployerPk}`);
 
@@ -47,63 +51,108 @@ async function main() {
   //@ts-ignore
   const creditAddress = contracts[100][0]["contracts"][creditTokenName]["address"];
 
-
-  // loop over tokenNames in array
+  // loop over assetNames in array
   // create burner wallet, store private key in .env & return wallet info
-  for (let i = 0; i < tokenNames.length; i++) {
+  for (let i = 0; i < assetNames.length; i++) {
     // generate burner address
-    const burner = await generateBurner(tokenNames[i].toUpperCase());
+    const burner = await generateBurner(assetNames[i].toUpperCase());
 
     // push the address, name object to the array
     addressInfo.push({
       address: getAddress(burner.address),
-      name: tokenNames[i],
+      name: assetNames[i],
     });
 
     // get token/dex addresses
-    const tokenName = tokenNames[i] + "Token" as string;
+    const assetName = assetNames[i] + "Token" as string;
     //@ts-ignore
-    const tokenAddress = contracts[100][0]["contracts"][tokenName]["address"];
-    //const tokenAddress = getAddress("0x");
-    const dexName = "BasicDex" + tokenNames[i];
+    const assetAddress = contracts[100][0]["contracts"][assetName]["address"];
+    //const assetAddress = getAddress("0x");
+    const dexName = "BasicDex" + assetNames[i];
     //@ts-ignore
     const dexAddress = contracts[100][0]["contracts"][dexName]["address"];
 
-    const { request: creditRequest } = await publicClient.simulateContract({
+    
+    // Wait for tx confirmation before sending next tx
+    /* function txQueue(transactions: SomeTxType[]) {
+     *    for (let i = 0; i < transactions.length; i++ {
+     *      // start tx
+     *      // wait for confirmation
+     *      // log something
+     *    }
+     *  }
+     *
+     *  // log completion
+     */
+
+    const creditContract = getContract({
       address: getAddress(creditAddress),
       abi: assetTokenAbi,
-      functionName: "transfer",
-      args: [burner.address, parseEther("200")],
-      account: address,
-      nonce: currentNonce++,
-    });
+      client: {
+        public: publicClient,
+        wallet: walletClient,
+      }
+    })
 
-    console.log(creditRequest);
-
-    const creditHash = await walletClient.writeContract(creditRequest);
-
-    console.log("Credit token transfer hash", creditHash);
-
-    const {request: assetRequest} = await publicClient.simulateContract({
-      address: getAddress(tokenAddress),
+    const creditHash = await creditContract.write.transfer([burner.address, tokensToSend]);
+    const creditTransaction = await publicClient.waitForTransactionReceipt(
+      { 
+        confirmations: 3, 
+        hash: creditHash,
+      }
+    )
+    console.log("Credit Transfer TX Confirmed", creditTransaction);
+    // TODO, change to above styl
+    const tokenContract = getContract({
+      address: getAddress(creditAddress),
       abi: assetTokenAbi,
-      functionName: "transfer",
-      account: address,
-      args: [burner.address, parseEther("200")],
-      nonce: currentNonce++,
-    });
+      client: {
+        public: publicClient,
+        wallet: walletClient,
+      }
+    })
 
-    const assetHash = await walletClient.writeContract(assetRequest);
+    const tokenHash = await tokenContract.write.transfer([burner.address, tokensToSend]);
+    const tokenTransaction = await publicClient.waitForTransactionReceipt(
+      { 
+        confirmations: 3, 
+        hash: tokenHash,
+      }
+    )
+    console.log("Token Transfer TX Confirmed", tokenTransaction);
 
-    console.log("Asset token transfer hash", assetHash);
-    // Send xDAI
-    walletClient.sendTransaction({
+   // Send xDAI
+    const xDaiHash = await walletClient.sendTransaction({
       to: getAddress(burner.address),
-      value: parseEther("2"),
-      nonce: currentNonce++,
+      value: xDaiToSend,
     });
+    
+    const daiTransaction = await publicClient.waitForTransactionReceipt({
+        confirmations: 3,
+        hash: xDaiHash,
+    });
+
+    console.log("xDai Transfer TX Confirmed", daiTransaction);
+
     // approve Dexes
   
+    const creditApproveHash = await creditContract.write.approve([dexAddress, MaxUint256]);
+
+    const creditApproveTx = await publicClient.waitForTransactionReceipt({
+      confirmations: 3,
+      hash: creditApproveHash,
+    });
+
+    console.log("Credit Approve Tx Confirmed", creditApproveTx);
+
+    const tokenApproveHash = await tokenContract.write.approve([dexAddress, MaxUint256]);
+
+    const tokenApproveTx = await publicClient.waitForTransactionReceipt({
+      confirmations: 3,
+      hash: tokenApproveHash,
+    });
+
+    console.log("Token Approve Tx Confirmed", tokenApproveTx);
   }
 
   // write addresses to wallets.json file
