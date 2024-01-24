@@ -1,4 +1,4 @@
-import { createWalletClient, createPublicClient, getAddress, getContract, http, parseEther } from "viem";
+import { createWalletClient, createPublicClient, getAddress, maxUint256, getContract, http, parseEther } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { gnosis } from "viem/chains";
 import { generateBurner } from "./generateBurnerAccount";
@@ -19,7 +19,6 @@ console.log(assetNames);
 const creditTokenName = "SaltToken";
 const tokensToSend = parseEther("1");
 const xDaiToSend = parseEther("0.0001");
-const amountToApprove= parseEther("420000000");
 
 // array the token name, address objects will be stored
 let addressInfo: TDexInfo[] = [];
@@ -136,7 +135,7 @@ async function main() {
 
     // approve Dexes
   
-    const creditApproveHash = await creditContract.write.approve([dexAddress, amountToApprove]);
+    const creditApproveHash = await creditContract.write.approve([dexAddress, maxUint256]);
 
     const creditApproveTx = await publicClient.waitForTransactionReceipt({
       confirmations: 3,
@@ -145,7 +144,7 @@ async function main() {
 
     console.log("Credit Approve Tx Confirmed", creditApproveTx);
 
-    const tokenApproveHash = await tokenContract.write.approve([dexAddress, amountToApprove]);
+    const tokenApproveHash = await tokenContract.write.approve([dexAddress, maxUint256]);
 
     const tokenApproveTx = await publicClient.waitForTransactionReceipt({
       confirmations: 3,
