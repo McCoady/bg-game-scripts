@@ -11,6 +11,7 @@
   "dependencies": {
     "dotenv": "^16.3.1",
     "envfile": "^6.18.0",
+    "fs": "^0.0.1-security",
     "ts-node": "^10.9.2",
     "typescript": "^5.3.3",
     "viem": "^2.5.0"
