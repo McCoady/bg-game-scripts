@@ -1,4 +1,12 @@
-import { createWalletClient, createPublicClient, getAddress, maxUint256, getContract, http, parseEther } from "viem";
+import {
+  createWalletClient,
+  createPublicClient,
+  getAddress,
+  maxUint256,
+  getContract,
+  http,
+  parseEther,
+} from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { gnosis } from "viem/chains";
 import { generateBurner } from "./generateBurnerAccount";
@@ -18,7 +26,7 @@ console.log(assetNames);
 // TODO: pull this from config
 const creditTokenName = "SaltToken";
 const tokensToSend = parseEther("1");
-const xDaiToSend = parseEther("0.0001");
+const xDaiToSend = parseEther("0.001");
 
 // array the token name, address objects will be stored
 let addressInfo: TDexInfo[] = [];
@@ -40,15 +48,13 @@ async function main() {
   });
 
   const [address] = await walletClient.getAddresses();
-  let currentNonce = await publicClient.getTransactionCount({
-    address
-  });
 
   console.log(address);
 
   // // address of credit token and contract instance
   //@ts-ignore
-  const creditAddress = contracts[100][0]["contracts"][creditTokenName]["address"];
+  const creditAddress =
+    contracts[100][0]["contracts"][creditTokenName]["address"];
 
   // loop over assetNames in array
   // create burner wallet, store private key in .env & return wallet info
@@ -63,7 +69,7 @@ async function main() {
     });
 
     // get token/dex addresses
-    const assetName = assetNames[i] + "Token" as string;
+    const assetName = (assetNames[i] + "Token") as string;
     //@ts-ignore
     const assetAddress = contracts[100][0]["contracts"][assetName]["address"];
     //const assetAddress = getAddress("0x");
@@ -71,87 +77,106 @@ async function main() {
     //@ts-ignore
     const dexAddress = contracts[100][0]["contracts"][dexName]["address"];
 
-    
-    // Wait for tx confirmation before sending next tx
-    /* function txQueue(transactions: SomeTxType[]) {
-     *    for (let i = 0; i < transactions.length; i++ {
-     *      // start tx
-     *      // wait for confirmation
-     *      // log something
-     *    }
-     *  }
-     *
-     *  // log completion
-     */
-
     const creditContract = getContract({
       address: getAddress(creditAddress),
       abi: assetTokenAbi,
       client: {
         public: publicClient,
         wallet: walletClient,
-      }
-    })
+      },
+    });
 
-    const creditHash = await creditContract.write.transfer([burner.address, tokensToSend]);
-    const creditTransaction = await publicClient.waitForTransactionReceipt(
-      { 
-        confirmations: 3, 
-        hash: creditHash,
-      }
-    )
-    console.log("Credit Transfer TX Confirmed", creditTransaction);
-    // TODO, change to above styl
+    const creditHash = await creditContract.write.transfer([
+      burner.address,
+      tokensToSend,
+    ]);
+    const creditTransaction = await publicClient.waitForTransactionReceipt({
+      confirmations: 3,
+      hash: creditHash,
+    });
+    console.log("Credit Transfer TX Confirmed", creditTransaction.blockNumber);
+
     const tokenContract = getContract({
-      address: getAddress(creditAddress),
+      address: getAddress(assetAddress),
       abi: assetTokenAbi,
       client: {
         public: publicClient,
         wallet: walletClient,
-      }
-    })
+      },
+    });
 
-    const tokenHash = await tokenContract.write.transfer([burner.address, tokensToSend]);
-    const tokenTransaction = await publicClient.waitForTransactionReceipt(
-      { 
-        confirmations: 3, 
-        hash: tokenHash,
-      }
-    )
-    console.log("Token Transfer TX Confirmed", tokenTransaction);
+    const tokenHash = await tokenContract.write.transfer([
+      burner.address,
+      tokensToSend,
+    ]);
+    const tokenTransaction = await publicClient.waitForTransactionReceipt({
+      confirmations: 3,
+      hash: tokenHash,
+    });
+    console.log("Token Transfer TX Confirmed", tokenTransaction.blockNumber);
 
-   // Send xDAI
+    // Send xDAI
     const xDaiHash = await walletClient.sendTransaction({
       to: getAddress(burner.address),
       value: xDaiToSend,
     });
-    
+
     const daiTransaction = await publicClient.waitForTransactionReceipt({
-        confirmations: 3,
-        hash: xDaiHash,
+      confirmations: 3,
+      hash: xDaiHash,
     });
 
-    console.log("xDai Transfer TX Confirmed", daiTransaction);
+    console.log("xDai Transfer TX Confirmed", daiTransaction.blockNumber);
 
     // approve Dexes
-  
-    const creditApproveHash = await creditContract.write.approve([dexAddress, maxUint256]);
+
+    const burnerClient = createWalletClient({
+      account: burner,
+      chain: gnosis,
+      transport: http(process.env.GNOSIS_RPC),
+    });
+
+    const creditContractBurner = getContract({
+      address: getAddress(creditAddress),
+      abi: assetTokenAbi,
+      client: {
+        public: publicClient,
+        wallet: burnerClient,
+      },
+    });
+
+    const creditApproveHash = await creditContractBurner.write.approve([
+      dexAddress,
+      maxUint256,
+    ]);
 
     const creditApproveTx = await publicClient.waitForTransactionReceipt({
       confirmations: 3,
       hash: creditApproveHash,
     });
 
-    console.log("Credit Approve Tx Confirmed", creditApproveTx);
+    console.log("Credit Approve Tx Confirmed", creditApproveTx.blockNumber);
 
-    const tokenApproveHash = await tokenContract.write.approve([dexAddress, maxUint256]);
+    const tokenContractBurner = getContract({
+      address: getAddress(assetAddress),
+      abi: assetTokenAbi,
+      client: {
+        public: publicClient,
+        wallet: burnerClient,
+      },
+    });
+
+    const tokenApproveHash = await tokenContractBurner.write.approve([
+      dexAddress,
+      maxUint256,
+    ]);
 
     const tokenApproveTx = await publicClient.waitForTransactionReceipt({
       confirmations: 3,
       hash: tokenApproveHash,
     });
 
-    console.log("Token Approve Tx Confirmed", tokenApproveTx);
+    console.log("Token Approve Tx Confirmed", tokenApproveTx.blockNumber);
   }
 
   // write addresses to wallets.json file
@@ -160,7 +185,7 @@ async function main() {
 
   fs.writeFile("./wallets.json", jsonAddressInfo, "utf8", function (err) {
     if (err) {
-     return console.log(err);
+      return console.log(err);
     }
 
     console.log("The file was saved!");
